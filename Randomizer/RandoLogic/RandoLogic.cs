@@ -397,13 +397,15 @@ namespace Celeste.Mod.Randomizer
 
             // this cutscene hardcodes a reference to a windsnow fg
             // the level should only ever be last on the list, right?
-            if (effect.Effect != "windsnow" && map.Levels[map.Levels.Count - 1].Name.StartsWith("Celeste/4-GoldenRidge/A/d-10"))
+            if (effect.Effect != "windsnow" && map.Levels.Where(lvl => lvl.Name.StartsWith("Celeste/4-GoldenRidge/A/d-10")).Any())
             {
+                // There is a miniscule chance of this level being second to last due to fake end
+                var idx = map.Levels.FindIndex(lvl => lvl.Name.StartsWith("Celeste/4-GoldenRidge/A/d-10"));
                 map.Foreground.Children.Add(new BinaryPacker.Element
                 {
                     Name = "windsnow",
                     Attributes = new Dictionary<string, object> {
-                       {"only", map.Levels[map.Levels.Count - 1].Name }
+                       {"only", map.Levels[idx].Name }
                     }
                 });
             }
@@ -658,6 +660,8 @@ namespace Celeste.Mod.Randomizer
                 char at(int xx, int yy) => yy >= lines.Count ? '0' : xx >= lines[yy].Length ? '0' : lines[yy][xx];
                 var height = lines.Count;
                 var width = lines.Select(j => j.Length).Max();
+                IEnumerable<EntityData> spinners = lvl.Entities.Where(e => e.Name == "spinner" || e.Name == "spikesUp" ||
+                                                                           e.Name == "greenBlocks" || e.Name == "redBlocks" || e.Name == "yellowBlocks");
                 var found = false;
                 int x = 0, y = 0;
                 for (int i = 0; i < 20 && !found; i++)
@@ -676,7 +680,22 @@ namespace Celeste.Mod.Randomizer
                             {
                                 y++;
                             }
-                            if (at(x + 1, y - 1) == '0' && at(x + 1, y) != '0')
+                            var safe = !spinners.Where(e =>
+                            {
+                                var entWidth = e.Name != "spinner" ? e.Width : 8;
+                                var entHeight = e.Name != "spinner" && e.Name != "spikesUp" ? e.Height : 0;
+                                return e.Position.X / 8 + entWidth / 8 >= x && e.Position.X / 8 - 1 <= x && e.Position.Y / 8 + entHeight / 8 == y;
+                            }).Any();
+
+                            var InsideRoof = lvl.FgDecals.Where(fg =>
+                            {
+                                if (fg.Scale.X < 0)
+                                {
+                                    return (fg.Position.X) / 8 >= x && (fg.Position.X + 8 * fg.Scale.X) / 8 <= x && (fg.Position.Y + 4) / 8 == y;
+                                }
+                                return (fg.Position.X) / 8 <= x && (fg.Position.X + 8 * fg.Scale.X) / 8 >= x && (fg.Position.Y + 4) / 8 == y;
+                            }).Any();
+                            if (at(x + 1, y - 1) == '0' && at(x + 1, y) != '0' &&  safe && !InsideRoof)
                             {
                                 found = true;
                             }
